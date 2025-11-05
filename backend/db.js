@@ -49,33 +49,9 @@ async function connectCred() {
 }
 
 async function migrateIfNeeded() {
-  // Migrate stencil database
-  const stencilMigrationsFile = path.join(__dirname, 'migrations', 'stencil.sql');
-  if (fs.existsSync(stencilMigrationsFile)) {
-    const sql = fs.readFileSync(stencilMigrationsFile, 'utf8');
-    const p = await connectStencil();
-    try {
-      await p.query(sql);
-      console.log('Migrations applied (stencil.sql)');
-    } catch (err) {
-      console.error('Stencil migration error:', err);
-      throw err;
-    }
-  }
-
-  // Migrate credenciales database
-  const credMigrationsFile = path.join(__dirname, 'migrations', 'credenciales.sql');
-  if (fs.existsSync(credMigrationsFile)) {
-    const sql = fs.readFileSync(credMigrationsFile, 'utf8');
-    const p = await connectCred();
-    try {
-      await p.query(sql);
-      console.log('Migrations applied (credenciales.sql)');
-    } catch (err) {
-      console.error('Credenciales migration error:', err);
-      throw err;
-    }
-  }
+  // Migrations disabled - using existing database tables
+  console.log('Using existing database tables (migrations disabled)');
 }
+
 
 module.exports = { connectStencil, connectCred, migrateIfNeeded };

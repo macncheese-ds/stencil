@@ -38,18 +38,18 @@ export default function App() {
     }
   }
 
-  async function onStop(idx) {
+  async function onStop(idx, usuario, password) {
     try {
-      await api.stopLine(idx);
+      await api.stopLine(idx, usuario, password);
       fetchLines();
     } catch (e) {
       alert(e.response?.data?.error || 'Error stopping line');
     }
   }
 
-  async function onReset(idx) {
+  async function onReset(idx, usuario, password) {
     try {
-      await api.resetLine(idx);
+      await api.resetLine(idx, usuario, password);
       fetchLines();
     } catch (e) {
       alert(e.response?.data?.error || 'Error resetting line');
