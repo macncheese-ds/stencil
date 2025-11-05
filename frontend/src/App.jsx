@@ -29,30 +29,21 @@ export default function App() {
 
 
 
-  async function onStart(idx, stencil) {
+  async function onStart(idx, stencil, usuario, nombre, password) {
     try {
-      await api.startLine(idx, stencil);
+      await api.startLine(idx, stencil, usuario, nombre, password);
       fetchLines();
     } catch (e) {
-      alert(e.response?.data?.error || 'Error starting line');
+      throw e; // Let the component handle the error
     }
   }
 
-  async function onStop(idx, usuario, password) {
+  async function onStop(idx, usuario, nombre, password) {
     try {
-      await api.stopLine(idx, usuario, password);
+      await api.stopLine(idx, usuario, nombre, password);
       fetchLines();
     } catch (e) {
       alert(e.response?.data?.error || 'Error stopping line');
-    }
-  }
-
-  async function onReset(idx, usuario, password) {
-    try {
-      await api.resetLine(idx, usuario, password);
-      fetchLines();
-    } catch (e) {
-      alert(e.response?.data?.error || 'Error resetting line');
     }
   }
 
@@ -67,7 +58,15 @@ export default function App() {
               <h1 className="text-3xl sm:text-4xl font-bold text-white">Control de Stencil</h1>
               <p className="text-slate-400 mt-2">Gestión de líneas de producción</p>
             </div>
-
+            <a
+              href="/history"
+              className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-lg transition flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Ver Historial
+            </a>
           </div>
         </div>
 
@@ -81,7 +80,6 @@ export default function App() {
                 info={lines[i] || { running: false }}
                 onStart={onStart}
                 onStop={onStop}
-                onReset={onReset}
                 hours={hours}
               />
             ))}

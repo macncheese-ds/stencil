@@ -10,7 +10,12 @@ function formatTdSeconds(totalSeconds) {
   return `${h}:${m}:${s}`;
 }
 
-export default function Line({ idx, info = { running: false }, onStart, onStop, onReset, hours = 8 }) {
+// Request notification permission on first load
+if ('Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+
+export default function Line({ idx, info = { running: false }, onStart, onStop, hours = 8 }) {
   const running = info.running;
   const stencil = info.stencil || '';
   const startTimeMs = info.start_time || null;
@@ -19,13 +24,14 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
   const [stencilInput, setStencilInput] = useState(stencil);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState(null); // 'start', 'stop', or 'reset'
+  const [pendingAction, setPendingAction] = useState(null); // 'start' or 'stop'
   const [authUser, setAuthUser] = useState('');
   const [authPass, setAuthPass] = useState('');
   const [authLookedUp, setAuthLookedUp] = useState(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const timerRef = useRef(null);
+  const alarmPlayedRef = useRef(false);
 
   useEffect(() => {
     setStencilInput(stencil);
@@ -42,10 +48,57 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
     }
   }, [running]);
 
+  // Calculate elapsed time
   let elapsedMs = 0;
   if (running && startTimeMs) {
     elapsedMs = Math.max(0, now - startTimeMs);
   }
+
+  // Check if 8 hours reached and play alarm + send notification
+  useEffect(() => {
+    if (running && startTimeMs) {
+      const elapsed = Date.now() - startTimeMs;
+      const target = hours * MS_PER_HOUR;
+      
+      if (elapsed >= target && !alarmPlayedRef.current) {
+        alarmPlayedRef.current = true;
+        
+        // Play alarm sound
+        try {
+          const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBi2Azv3cjjcIHmm98+2jTgwOUqzj8bRiGwU7k9n1zXgsBS13yO7gkUALFF+16+upVRQKRaDf87xiIAYugdH9344+CByq8e+0YRsFOpHY9c14KwUseMju4JFAC0xdtuzrrVYVCkeh3/S8YiEGL4HO/N2PPgccqfHutWEbBTuR2fXNeCsGK3fH7+CRPwtNXbbs661WFQpHot/0vGIhBi+Bzv3djz4HHKnx7rVhGwU7kdj1zHgrBit3x+/gkT8LTV227OytVhUKR6Lf9LxiIQYvgc793Y8+Bxyp8e61YRsFO5HZ9cx4KwYrd8fv4JE/C01dtuzrrlYVCkei3/S8YiEGL4HO/d2PPgccqfHutWEbBTuR2PXMeCsGK3fH7+CRPwtNXbbs661WFQpHot/0vGIhBi+Bzv3djz4HHKnx7rVhGwU7kdj1zHgrBit3x+/gkT8LTV227OytVhUKR6Lf9LxiIQYvgc793Y8+Bxyp8e61YRsFO5HZ9cx4KwYrd8fv4JE/C01dtuzrrlYVCkei3/S8YiEGL4HO/d2PPgccqfHutWEbBTuR2fXMeCsGK3fH7+CRPwtNXbbs661WFQpHot/0vGIhBi+Bzv3djz4HHKnx7rVhGwU7kdj1zHgrBit3x+/gkT8LTV227OytVhUKR6Lf9LxiIQYvgc793Y8+Bxyp8e61YRsFO5HZ9cx4KwYrd8fv4JE/C01dtuzrrlYVCkei3/S8YiEGL4HO/d2PPgccqfHutWEbBTuR2fXMeCsGK3fH7+CRPwtNXbbs661WFQpHot/0vGIhBi+Bzv3djz4HHKnx7rVhGwU7kdj1zHgrBit3x+/gkT8LTV227OytVhUKR6Lf9LxiIQYvgc793Y8+Bxyp8e61YRsFO5HZ9cx4KwYrd8fv4JE/C01dtuzrrlYVCkei3/S8YiEGL4HO/d2PPgccqfHutWEbBTuR2fXMeCsGK3fH7+CRPwtNXbbs661WFQpHot/0vGIhBi+Bzv3djz4HHKnx7rVhGwU7kdj1zHgrBit3x+/gkT8LTV227OytVhUKR6Lf9LxiIQYvgc793Y8+Bxyp8e61YRsFO5HZ9cx4KwYrd8fv4JE/C01dtuzrrlYVCkei3/S8YiEGL4HO/d2PPgccqfHutWEbBTuR2fXMeCsGK3fH7+CRPwtNXbbs661WFQpHot/0vGIhBi+Bzv3djz4HHKnx7rVhGwU7kdj1zHgrBit3x+/gkT8LTV227OytVhUK');
+          audio.volume = 0.5;
+          audio.play().catch(e => console.log('Audio play failed:', e));
+        } catch (e) {
+          console.log('Audio creation failed:', e);
+        }
+        
+        // Send browser notification
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            const notification = new Notification('¡ALERTA DE 8 HORAS!', {
+              body: `La Línea ${idx + 1} ha alcanzado las 8 horas de ejecución.\nStencil: ${stencil || 'N/A'}`,
+              icon: '/favicon.ico',
+              badge: '/favicon.ico',
+              tag: `line-${idx}`,
+              requireInteraction: true, // Keeps notification visible until user interacts
+              vibrate: [200, 100, 200],
+              silent: false
+            });
+            
+            // Click handler to focus the window
+            notification.onclick = () => {
+              window.focus();
+              notification.close();
+            };
+          } catch (e) {
+            console.log('Notification failed:', e);
+          }
+        }
+      }
+    } else {
+      alarmPlayedRef.current = false;
+    }
+  }, [running, startTimeMs, hours, now, idx, stencil]);
   const targetMs = hours * MS_PER_HOUR;
   const pct = Math.min(100, Math.round((elapsedMs / targetMs) * 100));
   const elapsedSeconds = Math.floor(elapsedMs / 1000);
@@ -57,17 +110,13 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
       alert('Por favor ingresa el número de stencil');
       return;
     }
-    // No auth needed for start, just call onStart directly
-    await onStart(idx, stencilInput);
+    // Require credentials for start
+    setPendingAction('start');
+    setShowConfirmModal(true);
   }
 
   async function handleDetener() {
     setPendingAction('stop');
-    setShowConfirmModal(true);
-  }
-
-  async function handleReiniciar() {
-    setPendingAction('reset');
     setShowConfirmModal(true);
   }
 
@@ -78,17 +127,32 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
 
   async function handleAuthSubmit(e) {
     e.preventDefault();
-    setShowAuthModal(false);
-    if (pendingAction === 'stop') {
-      await onStop(idx, authUser, authPass);
-    } else if (pendingAction === 'reset') {
-      await onReset(idx, authUser, authPass);
-    }
-    setPendingAction(null);
-    setAuthUser('');
-    setAuthPass('');
-    setAuthLookedUp(null);
+    setAuthLoading(true);
     setAuthError('');
+    
+    try {
+      // Use the usuario field and nombre from authLookedUp
+      const usuario = authLookedUp?.usuario;
+      const nombre = authLookedUp?.nombre;
+      
+      if (pendingAction === 'start') {
+        await onStart(idx, stencilInput, usuario, nombre, authPass);
+      } else if (pendingAction === 'stop') {
+        await onStop(idx, usuario, nombre, authPass);
+      }
+      
+      // Success - close modal and reset
+      setShowAuthModal(false);
+      setPendingAction(null);
+      setAuthUser('');
+      setAuthPass('');
+      setAuthLookedUp(null);
+      setAuthError('');
+    } catch (error) {
+      setAuthError(error.response?.data?.error || 'Error en autenticación');
+    } finally {
+      setAuthLoading(false);
+    }
   }
 
   async function handleAuthLookup() {
@@ -102,9 +166,9 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
     setAuthLookedUp(null);
     
     try {
-      // Mock lookup - in real implementation, call backend
-      // For now, just store the usuario and ask for password
-      setAuthLookedUp({ usuario: authUser });
+      // Lookup user by num_empleado
+      const userData = await api.lookupUser(authUser.trim());
+      setAuthLookedUp(userData);
     } catch (e) {
       setAuthError('Usuario no encontrado');
       setAuthLookedUp(null);
@@ -129,8 +193,8 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
 
   return (
     <div className={`rounded-xl shadow-lg p-6 transition ${
+      isCompleted ? 'bg-gradient-to-br from-red-600 to-red-700 animate-pulse' :
       running ? 'bg-gradient-to-br from-blue-600 to-blue-700' :
-      isCompleted ? 'bg-gradient-to-br from-amber-500 to-amber-600' :
       'bg-gradient-to-br from-slate-700 to-slate-800'
     } text-white`}>
       
@@ -139,11 +203,11 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
         <div className="flex justify-between items-start mb-2">
           <h3 className="text-xl font-bold">Línea {idx + 1}</h3>
           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+            isCompleted ? 'bg-red-500 bg-opacity-40 animate-pulse' :
             running ? 'bg-blue-500 bg-opacity-30' :
-            isCompleted ? 'bg-amber-500 bg-opacity-30' :
             'bg-slate-600 bg-opacity-30'
           }`}>
-            {running ? '🔴 Ejecutando' : isCompleted ? '⏱️ Completado' : '⚪ Detenido'}
+            {isCompleted ? '¡8 HORAS!' : running ? 'Ejecutando' : 'Detenido'}
           </span>
         </div>
         {running && stencil && <p className="text-blue-100 text-sm">Stencil: {stencil}</p>}
@@ -162,10 +226,14 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
       </div>
 
       {/* Timer Display */}
-      <div className="mb-4 p-4 bg-white bg-opacity-10 rounded-lg">
+      <div className={`mb-4 p-4 rounded-lg ${
+        isCompleted ? 'bg-red-500 bg-opacity-30 border-2 border-red-300 animate-pulse' : 'bg-white bg-opacity-10'
+      }`}>
         <div className="text-center">
-          <div className="text-4xl font-mono font-bold mb-2">{displayTime}</div>
-          <div className="text-sm text-gray-200">
+          <div className={`text-4xl font-mono font-bold mb-2 ${isCompleted ? 'text-red-100' : ''}`}>
+            {displayTime}
+          </div>
+          <div className={`text-sm ${isCompleted ? 'text-red-100 font-bold' : 'text-gray-200'}`}>
             / {String(hours).padStart(2, '0')}:00:00
           </div>
         </div>
@@ -175,11 +243,13 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
       <div className="mb-4">
         <div className="w-full bg-white bg-opacity-20 rounded-full h-3 overflow-hidden">
           <div
-            className="h-3 bg-white transition-all duration-500"
+            className={`h-3 transition-all duration-500 ${
+              isCompleted ? 'bg-red-300 animate-pulse' : 'bg-white'
+            }`}
             style={{ width: `${pct}%` }}
           />
         </div>
-        <div className="mt-2 text-sm text-gray-200">
+        <div className={`mt-2 text-sm ${isCompleted ? 'text-red-100 font-bold' : 'text-gray-200'}`}>
           Progreso: {pct}%
         </div>
       </div>
@@ -202,14 +272,7 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
             Detener
           </button>
         )}
-        {isCompleted && (
-          <button
-            onClick={handleReiniciar}
-            className="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 rounded-lg transition transform hover:scale-105"
-          >
-            Reiniciar
-          </button>
-        )}
+
       </div>
 
       {/* Confirmation Modal */}
@@ -218,13 +281,11 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
           <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
             <h3 className="text-xl font-bold text-slate-900 mb-4">
               {pendingAction === 'start' && '¿Iniciar ciclo?'}
-              {pendingAction === 'stop' && '¿Pausar ciclo?'}
-              {pendingAction === 'reset' && '¿Reiniciar ciclo?'}
+              {pendingAction === 'stop' && '¿Detener ciclo?'}
             </h3>
             <p className="text-slate-600 mb-6">
               {pendingAction === 'start' && `Iniciarás el conteo para stencil ${stencilInput}`}
-              {pendingAction === 'stop' && 'Se pausará el conteo del ciclo actual'}
-              {pendingAction === 'reset' && 'Se reiniciará el ciclo completado'}
+              {pendingAction === 'stop' && 'Se detendrá el conteo del ciclo actual'}
             </p>
             <div className="flex gap-3">
               <button
@@ -293,7 +354,10 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
                         </svg>
                         <span className="text-sm text-green-700 font-medium">Usuario encontrado</span>
                       </div>
-                      <div className="font-bold text-slate-900">{authLookedUp.usuario}</div>
+                      <div className="font-bold text-slate-900 text-lg">{authLookedUp.nombre}</div>
+                      <div className="text-sm text-slate-600 mt-1">
+                        Gafete: {authLookedUp.num_empleado} • Usuario: {authLookedUp.usuario}
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -316,6 +380,7 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
                     onChange={e => setAuthPass(e.target.value)}
                     className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:outline-none focus:border-blue-500 bg-slate-50 text-slate-900 placeholder-slate-400"
                     placeholder="••••••••"
+                    autoComplete="current-password"
                     required
                     autoFocus
                   />

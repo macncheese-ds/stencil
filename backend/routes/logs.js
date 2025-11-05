@@ -19,14 +19,20 @@ function authMiddleware(req, res, next) {
   }
 }
 
-// Get registros (admin only)
-router.get('/', authMiddleware, async (req, res) => {
-  if (!req.user || req.user.rol !== 'Administrador') return res.status(403).json({ error: 'admin required' });
+// Get registros - history of all cycles
+router.get('/', async (req, res) => {
   const db = req.dbStencil;
   try {
-    const [rows] = await db.query('SELECT * FROM registros ORDER BY id DESC LIMIT 1000');
+    const limit = parseInt(req.query.limit) || 100;
+    const [rows] = await db.query(`
+      SELECT id, linea, stencil, fh_i, fh_d, usuario, usuario1
+      FROM registros 
+      ORDER BY id DESC 
+      LIMIT ?
+    `, [limit]);
     res.json({ registros: rows });
   } catch (err) {
+    console.error('Error in GET /logs:', err);
     res.status(500).json({ error: 'db error' });
   }
 });

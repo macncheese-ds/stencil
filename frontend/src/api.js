@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8564/api';
+// Use relative path in production, absolute in development
+const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:8564/api');
 
 let token = null;
 export function setToken(t) { token = t; }
@@ -24,22 +25,22 @@ export async function getLines() {
   return res.data;
 }
 
-export async function startLine(id, stencil) {
-  const res = await axios.post(`${API_BASE}/lines/${id}/start`, { stencil });
+export async function startLine(id, stencil, usuario, nombre, password) {
+  const res = await axios.post(`${API_BASE}/lines/${id}/start`, { stencil, usuario, nombre, password });
   return res.data;
 }
 
-export async function stopLine(id, usuario, password) {
-  const res = await axios.post(`${API_BASE}/lines/${id}/stop`, { usuario, password }, { headers: authHeaders() });
+export async function stopLine(id, usuario, nombre, password) {
+  const res = await axios.post(`${API_BASE}/lines/${id}/stop`, { usuario, nombre, password }, { headers: authHeaders() });
   return res.data;
 }
 
-export async function resetLine(id, usuario, password) {
-  const res = await axios.post(`${API_BASE}/lines/${id}/reset`, { usuario, password }, { headers: authHeaders() });
+export async function getLogs(limit = 100) {
+  const res = await axios.get(`${API_BASE}/logs?limit=${limit}`, { headers: authHeaders() });
   return res.data;
 }
 
-export async function getLogs() {
-  const res = await axios.get(`${API_BASE}/logs`, { headers: authHeaders() });
+export async function lookupUser(numEmpleado) {
+  const res = await axios.get(`${API_BASE}/auth/lookup/${numEmpleado}`);
   return res.data;
 }
