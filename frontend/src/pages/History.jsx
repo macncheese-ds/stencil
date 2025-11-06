@@ -1,52 +1,77 @@
-import React, { useEffect, useState } from 'react';
+
+
+import React, { useState, useEffect } from 'react';
 import * as api from '../api';
 import * as XLSX from 'xlsx';
 
-export default function History() {
-  const [registros, setRegistros] = useState([]);
-  const [allRegistros, setAllRegistros] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalRecords, setTotalRecords] = useState(0);
-  const recordsPerPage = 100;
+const LINE_OPTIONS = [1, 2, 3, 4];
+const RECORDS_PER_PAGE = 100;
 
-  async function fetchLogs() {
+export default function History() {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [line, setLine] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [applied, setApplied] = useState(false);
+
+  async function fetchHistory(params = {}) {
+    setLoading(true);
     try {
-      setLoading(true);
-      const data = await api.getLogs(5000); // Get more records
-      const all = data.registros || [];
-      setAllRegistros(all);
-      setTotalRecords(all.length);
-      // Show first page
-      setRegistros(all.slice(0, recordsPerPage));
-      setCurrentPage(1);
+      const data = await api.getHistory(params);
+      // Ordenar por fecha/hora de inicio descendente, luego por id descendente
+      const sorted = (data.history || []).sort((a, b) => {
+        const da = new Date(a.fh_i || a.fh_d || 0);
+        const db = new Date(b.fh_i || b.fh_d || 0);
+        if (db - da !== 0) return db - da;
+        return b.id - a.id;
+      });
+      setHistory(sorted);
+      setTotal(sorted.length);
     } catch (e) {
-      console.error('Error fetching logs:', e);
+      setHistory([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
   }
 
+  // Inicial: historial general
   useEffect(() => {
-    fetchLogs();
+    fetchHistory({ limit: 5000 });
+    setApplied(false);
+    setPage(1);
   }, []);
 
-  // Calculate total pages
-  const totalPages = Math.ceil(totalRecords / recordsPerPage);
-
-  // Handle page change
-  function goToPage(page) {
-    const start = (page - 1) * recordsPerPage;
-    const end = start + recordsPerPage;
-    setRegistros(allRegistros.slice(start, end));
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Cuando se aplica filtro
+  function onApplyFilters(e) {
+    e && e.preventDefault();
+    const params = {};
+    if (line) params.line = line;
+    if (from) params.from = from;
+    if (to) params.to = to;
+    fetchHistory(params);
+    setApplied(!!(line || from || to));
+    setPage(1);
   }
 
-  // Export to Excel
+  // Paginación
+  const totalPages = Math.ceil(total / RECORDS_PER_PAGE);
+  const paginated = history.slice((page - 1) * RECORDS_PER_PAGE, page * RECORDS_PER_PAGE);
+
+  // Agrupar por línea solo si hay filtro de línea
+  const grouped = line
+    ? paginated.reduce((acc, reg) => {
+        acc[reg.linea] = acc[reg.linea] || [];
+        acc[reg.linea].push(reg);
+        return acc;
+      }, {})
+    : null;
+
   function exportToExcel() {
-    // Prepare data for export
-    const data = allRegistros.map(reg => ({
+    const data = history.map(reg => ({
       'ID': reg.id,
       'Línea': reg.linea,
       'Stencil': reg.stencil || '',
@@ -57,29 +82,13 @@ export default function History() {
       'Detenido por': reg.usuario1 || '',
       'Estado': reg.fh_d ? 'Completado' : 'En curso'
     }));
-
-    // Create workbook and worksheet
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Historial Stencil');
-
-    // Set column widths
     ws['!cols'] = [
-      { wch: 8 },  // ID
-      { wch: 8 },  // Línea
-      { wch: 10 }, // Stencil
-      { wch: 20 }, // Inicio
-      { wch: 20 }, // Fin
-      { wch: 15 }, // Duración
-      { wch: 30 }, // Iniciado por
-      { wch: 30 }, // Detenido por
-      { wch: 12 }  // Estado
+      { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 12 }
     ];
-
-    // Generate filename with date
     const fileName = `historial_stencil_${new Date().toISOString().split('T')[0]}.xlsx`;
-    
-    // Save file
     XLSX.writeFile(wb, fileName);
   }
 
@@ -110,13 +119,12 @@ export default function History() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-4 sm:p-6">
-      {/* Header */}
       <div className="max-w-7xl mx-auto mb-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold text-white">Historial de Ciclos</h1>
             <p className="text-slate-400 mt-2">
-              {totalRecords} registros totales • Página {currentPage} de {totalPages}
+              {total} registros encontrados
             </p>
           </div>
           <div className="flex gap-3">
@@ -137,144 +145,147 @@ export default function History() {
             </a>
           </div>
         </div>
+        {/* Filtros minimalistas */}
+        <form className="mt-6 flex flex-wrap gap-4 items-end" onSubmit={onApplyFilters}>
+          <div>
+            <label className="block text-slate-300 text-xs mb-1">Línea</label>
+            <select value={line} onChange={e => setLine(e.target.value)} className="bg-slate-800 text-white rounded px-3 py-2">
+              <option value="">Todas</option>
+              {LINE_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-slate-300 text-xs mb-1">Desde</label>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="bg-slate-800 text-white rounded px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-slate-300 text-xs mb-1">Hasta</label>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)} className="bg-slate-800 text-white rounded px-3 py-2" />
+          </div>
+          <button type="submit" className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">Buscar</button>
+        </form>
       </div>
-
-      {/* Table */}
       <div className="max-w-7xl mx-auto">
-        <div className="bg-slate-800 rounded-lg shadow-2xl overflow-hidden">
+        <div className="bg-slate-800 rounded-lg shadow-2xl overflow-hidden mt-4">
           {loading ? (
             <div className="p-8 text-center text-slate-400">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
               Cargando historial...
             </div>
-          ) : registros.length === 0 ? (
+          ) : total === 0 ? (
             <div className="p-8 text-center text-slate-400">
               No hay registros disponibles
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Línea</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Stencil</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Inicio</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Fin</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Duración</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Iniciado por</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Detenido por</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-700">
-                  {registros.map((reg) => (
-                    <tr key={reg.id} className="hover:bg-slate-700 transition">
-                      <td className="px-4 py-3 text-sm text-slate-300">{reg.id}</td>
-                      <td className="px-4 py-3 text-sm text-white font-medium">
-                        Línea {reg.linea}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-white font-mono">
-                        {reg.stencil || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-300">
-                        {formatDateTime(reg.fh_i)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-300">
-                        {formatDateTime(reg.fh_d)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-300 font-mono">
-                        {calculateDuration(reg.fh_i, reg.fh_d)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-green-400">
-                        {reg.usuario || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-red-400">
-                        {reg.usuario1 || '-'}
-                      </td>
-                      <td className="px-4 py-3">
-                        {reg.fh_d ? (
-                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-500 bg-opacity-20 text-green-400">
-                            Completado
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-500 bg-opacity-20 text-blue-400 animate-pulse">
-                            En curso
-                          </span>
-                        )}
-                      </td>
+              {/* Si hay filtro de línea, mostrar agrupado, si no, tabla general paginada */}
+              {line ? (
+                Object.keys(grouped).sort().map(linea => (
+                  <div key={linea} className="mb-8">
+                    <h2 className="text-lg font-bold text-white mb-2">Línea {linea}</h2>
+                    <table className="w-full mb-2">
+                      <thead className="bg-slate-700">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Stencil</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Inicio</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Fin</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Duración</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Iniciado por</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Detenido por</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-700">
+                        {grouped[linea].map(reg => (
+                          <tr key={reg.id} className="hover:bg-slate-700 transition">
+                            <td className="px-4 py-3 text-sm text-slate-300">{reg.id}</td>
+                            <td className="px-4 py-3 text-sm text-white font-mono">{reg.stencil || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-slate-300">{formatDateTime(reg.fh_i)}</td>
+                            <td className="px-4 py-3 text-sm text-slate-300">{formatDateTime(reg.fh_d)}</td>
+                            <td className="px-4 py-3 text-sm text-slate-300 font-mono">{calculateDuration(reg.fh_i, reg.fh_d)}</td>
+                            <td className="px-4 py-3 text-sm text-green-400">{reg.usuario || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-red-400">{reg.usuario1 || '-'}</td>
+                            <td className="px-4 py-3">
+                              {reg.fh_d ? (
+                                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-500 bg-opacity-20 text-green-400">Completado</span>
+                              ) : (
+                                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-500 bg-opacity-20 text-blue-400 animate-pulse">En curso</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))
+              ) : (
+                <table className="w-full">
+                  <thead className="bg-slate-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">ID</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Línea</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Stencil</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Inicio</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Fin</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Duración</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Iniciado por</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Detenido por</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Estado</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700">
+                    {paginated.map(reg => (
+                      <tr key={reg.id} className="hover:bg-slate-700 transition">
+                        <td className="px-4 py-3 text-sm text-slate-300">{reg.id}</td>
+                        <td className="px-4 py-3 text-sm text-white font-medium">Línea {reg.linea}</td>
+                        <td className="px-4 py-3 text-sm text-white font-mono">{reg.stencil || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-slate-300">{formatDateTime(reg.fh_i)}</td>
+                        <td className="px-4 py-3 text-sm text-slate-300">{formatDateTime(reg.fh_d)}</td>
+                        <td className="px-4 py-3 text-sm text-slate-300 font-mono">{calculateDuration(reg.fh_i, reg.fh_d)}</td>
+                        <td className="px-4 py-3 text-sm text-green-400">{reg.usuario || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-red-400">{reg.usuario1 || '-'}</td>
+                        <td className="px-4 py-3">
+                          {reg.fh_d ? (
+                            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-500 bg-opacity-20 text-green-400">Completado</span>
+                          ) : (
+                            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-500 bg-opacity-20 text-blue-400 animate-pulse">En curso</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {/* Paginación */}
+              {!line && totalPages > 1 && (
+                <div className="mt-6 flex justify-center items-center gap-2">
+                  <button onClick={() => setPage(1)} disabled={page === 1} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">««</button>
+                  <button onClick={() => setPage(page - 1)} disabled={page === 1} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">‹ Anterior</button>
+                  <div className="flex gap-2">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (page <= 3) {
+                        pageNum = i + 1;
+                      } else if (page >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = page - 2 + i;
+                      }
+                      return (
+                        <button key={pageNum} onClick={() => setPage(pageNum)} className={`px-4 py-2 rounded-lg transition ${page === pageNum ? 'bg-blue-600 text-white font-bold' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}>{pageNum}</button>
+                      );
+                    })}
+                  </div>
+                  <button onClick={() => setPage(page + 1)} disabled={page === totalPages} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">Siguiente ›</button>
+                  <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">»»</button>
+                </div>
+              )}
             </div>
           )}
         </div>
-
-        {/* Pagination */}
-        {!loading && totalPages > 1 && (
-          <div className="mt-6 flex justify-center items-center gap-2">
-            <button
-              onClick={() => goToPage(1)}
-              disabled={currentPage === 1}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              ««
-            </button>
-            <button
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              ‹ Anterior
-            </button>
-            
-            {/* Page numbers */}
-            <div className="flex gap-2">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-                
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => goToPage(pageNum)}
-                    className={`px-4 py-2 rounded-lg transition ${
-                      currentPage === pageNum
-                        ? 'bg-blue-600 text-white font-bold'
-                        : 'bg-slate-700 hover:bg-slate-600 text-white'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Siguiente ›
-            </button>
-            <button
-              onClick={() => goToPage(totalPages)}
-              disabled={currentPage === totalPages}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              »»
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

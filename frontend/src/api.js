@@ -1,3 +1,14 @@
+// Obtener historial filtrado por línea y rango de fechas
+export async function getHistory({ line, from, to, limit = 500 }) {
+  const params = [];
+  if (line) params.push(`line=${encodeURIComponent(line)}`);
+  if (from) params.push(`from=${encodeURIComponent(from)}`);
+  if (to) params.push(`to=${encodeURIComponent(to)}`);
+  let url = `${API_BASE}/history`;
+  if (params.length) url += '?' + params.join('&');
+  const res = await axios.get(url, { headers: authHeaders() });
+  return res.data;
+}
 import axios from 'axios';
 
 // Use relative path in production, absolute in development

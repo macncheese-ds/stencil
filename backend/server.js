@@ -7,6 +7,7 @@ const { connectStencil, connectCred, migrateIfNeeded } = require('./db');
 const authRoutes = require('./routes/auth');
 const linesRoutes = require('./routes/lines');
 const logsRoutes = require('./routes/logs');
+const historyRoutes = require('./routes/history');
 
 const PORT = process.env.PORT || 8564;
 
@@ -37,7 +38,9 @@ app.use(bodyParser.json());
     // Routes
     app.use('/api/auth', authRoutes);
     app.use('/api/lines', linesRoutes);
-    app.use('/api/logs', logsRoutes);
+
+  app.use('/api/logs', logsRoutes);
+  app.use('/api/history', historyRoutes);
 
     app.get('/health', (req, res) => res.json({ ok: true }));
 
