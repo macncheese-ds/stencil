@@ -18,9 +18,9 @@ if ('Notification' in window && Notification.permission === 'default') {
 export default function Line({ idx, info = { running: false }, onStart, onStop, hours = 8 }) {
   const running = info.running;
   const stencil = info.stencil || '';
-  const startTimeMs = info.start_time || null;
+  const serverElapsedMs = info.elapsed_ms || 0; // Use server-calculated elapsed time
 
-  const [now, setNow] = useState(Date.now());
+  const [localElapsed, setLocalElapsed] = useState(0);
   const [stencilInput, setStencilInput] = useState(stencil);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -31,36 +31,43 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const timerRef = useRef(null);
+  const lastSyncRef = useRef(Date.now());
   const alarmPlayedRef = useRef(false);
 
   useEffect(() => {
     setStencilInput(stencil);
   }, [stencil]);
 
+  // Sync with server elapsed time when it updates
+  useEffect(() => {
+    setLocalElapsed(serverElapsedMs);
+    lastSyncRef.current = Date.now();
+  }, [serverElapsedMs]);
+
+  // Local timer to increment between server syncs
   useEffect(() => {
     if (running) {
-      timerRef.current = setInterval(() => setNow(Date.now()), 500);
+      timerRef.current = setInterval(() => {
+        const sinceLast = Date.now() - lastSyncRef.current;
+        setLocalElapsed(serverElapsedMs + sinceLast);
+      }, 500);
       return () => clearInterval(timerRef.current);
     }
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-  }, [running]);
+  }, [running, serverElapsedMs]);
 
-  // Calculate elapsed time
-  let elapsedMs = 0;
-  if (running && startTimeMs) {
-    elapsedMs = Math.max(0, now - startTimeMs);
-  }
+  // Calculate elapsed time from local state
+  let elapsedMs = running ? localElapsed : 0;
 
   // Check if 8 hours reached and play alarm + send notification
   useEffect(() => {
-    if (running && startTimeMs) {
-      const elapsed = Date.now() - startTimeMs;
+    if (running && elapsedMs > 0) {
       const target = hours * MS_PER_HOUR;
       
-      if (elapsed >= target && !alarmPlayedRef.current) {
+      if (elapsedMs >= target && !alarmPlayedRef.current) {
         alarmPlayedRef.current = true;
         
         // Play alarm sound
@@ -98,7 +105,7 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
     } else {
       alarmPlayedRef.current = false;
     }
-  }, [running, startTimeMs, hours, now, idx, stencil]);
+  }, [running, elapsedMs, hours, idx, stencil]);
   const targetMs = hours * MS_PER_HOUR;
   const pct = Math.min(100, Math.round((elapsedMs / targetMs) * 100));
   const elapsedSeconds = Math.floor(elapsedMs / 1000);

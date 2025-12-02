@@ -12,7 +12,7 @@ export async function getHistory({ line, from, to, limit = 500 }) {
 import axios from 'axios';
 
 // Use relative path in production, absolute in development
-const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:8564/api');
+const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:3109/api');
 
 let token = null;
 export function setToken(t) { token = t; }

@@ -65,15 +65,19 @@ router.get('/', async (req, res) => {
     `);
     
     const map = {};
+    const serverNow = Date.now(); // Server's current time
     rows.forEach(r => {
       // running = fh_d is NULL (end time not set yet)
       const running = r.fh_d === null;
       const start_time = r.fh_i ? new Date(r.fh_i).getTime() : null;
+      // Calculate elapsed on server to avoid timezone issues
+      const elapsed_ms = (running && start_time) ? serverNow - start_time : 0;
       map[r.linea] = {
         running,
         stencil: r.stencil,
         fh_i: r.fh_i,
         start_time,
+        elapsed_ms, // Send pre-calculated elapsed time
         user: r.usuario
       };
     });
