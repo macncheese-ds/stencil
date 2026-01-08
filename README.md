@@ -21,6 +21,7 @@ Donde `<IP_DEL_SERVIDOR>` es la IP de la máquina donde está corriendo nginx (e
 - 🔐 Autenticación por gafete de empleado con escaneo
 - 📊 Historial completo con paginación (100 registros por página)
 - 📥 Exportación a Excel del historial
+- 📈 **Registro y visualización de tensiones de stencils**
 - 🎨 Interfaz moderna con Tailwind CSS
 
 ## 🛠️ Configuración
@@ -49,9 +50,19 @@ DB_NAME=stencil
 CRED_DB_NAME=credenciales
 JWT_SECRET=tu_secret
 JWT_EXPIRES_IN=8h
+
+# Tension configuration (optional - defaults shown)
+TENSION_MIN=0
+TENSION_MAX=100
+TENSION_SUPERVISOR=SUPERVISOR
 ```
 
-4. Iniciar el servidor:
+4. Crear las tablas de tensiones en la base de datos:
+```bash
+mysql -u root -p stencil < backend/init_tensions.sql
+```
+
+5. Iniciar el servidor:
 ```bash
 npm start
 ```
@@ -132,8 +143,51 @@ Después de hacer cambios en el código, recuerda:
 2. Navega por las páginas (100 registros por página)
 3. Exporta a Excel con el botón "Exportar a Excel"
 
+### Registrar Tensiones de Stencils
+1. Click en "Tensiones" en el menú principal
+2. Click en "Registrar Nueva Tensión"
+3. Ingresa el ID del stencil (el modelo se autocompleta)
+4. Ingresa las mediciones Da, Db, Dc, Dd, De (kg/cm²)
+5. Escanea tu gafete y autentica con tu contraseña
+6. El registro se guarda automáticamente con fecha actual
+7. Los valores min, max y supervisor se aplican desde la configuración del backend
+
+### Ver Tensiones Registradas
+- **Vista Principal**: Muestra el último registro de cada stencil
+- **Filtrar por ID**: Usa el campo de búsqueda para filtrar
+- **Ver Historial**: Click en "Ver Historial" de cualquier registro
+- **Exportar**: Click en "Exportar CSV" para descargar todos los registros
+
 ## 🗄️ Base de Datos
 
+
+### Tabla: `tension`
+```sql
+CREATE TABLE tension(
+  fecha DATE,
+  id INT,
+  model VARCHAR(250),
+  da DECIMAL(10, 2),
+  db DECIMAL(10, 2),
+  dc DECIMAL(10, 2),
+  dd DECIMAL(10, 2),
+  de DECIMAL(10, 2),
+  min DECIMAL(10, 2),
+  max DECIMAL(10, 2),
+  operador VARCHAR(250),
+  supervisor VARCHAR(250)
+);
+```
+
+### Tabla: `stencil`
+```sql
+CREATE TABLE stencil(
+  id INT PRIMARY KEY,
+  model VARCHAR(250)
+);
+```
+
+**Nota**: Los valores `min`, `max` y `supervisor` se configuran en el backend (`.env`) y no son editables por el usuario.
 ### Tabla: `registros`
 ```sql
 CREATE TABLE registros (

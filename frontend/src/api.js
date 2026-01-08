@@ -55,3 +55,37 @@ export async function lookupUser(numEmpleado) {
   const res = await axios.get(`${API_BASE}/auth/lookup/${numEmpleado}`);
   return res.data;
 }
+
+// Tensions API
+export async function postTension(data) {
+  // Ensure client sends `numero` (backwards compatible if caller already passes `id`)
+  if (data.id && !data.numero) {
+    data.numero = data.id;
+    delete data.id;
+  }
+  const res = await axios.post(`${API_BASE}/tensions`, data);
+  return res.data;
+}
+
+export async function getLatestTensions(numero = null) {
+  const url = numero ? `${API_BASE}/tensions/latest?numero=${numero}` : `${API_BASE}/tensions/latest`;
+  const res = await axios.get(url);
+  return res.data;
+}
+
+export async function getTensionHistory(numero) {
+  const res = await axios.get(`${API_BASE}/tensions/${numero}/all`);
+  return res.data;
+}
+
+export async function exportTensionsCSV() {
+  const res = await axios.get(`${API_BASE}/tensions/export`, {
+    responseType: 'blob'
+  });
+  return res.data;
+}
+
+export async function getStencil(id) {
+  const res = await axios.get(`${API_BASE}/stencils/${id}`);
+  return res.data;
+}

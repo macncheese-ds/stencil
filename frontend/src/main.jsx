@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App'
 import History from './pages/History'
+import Tensions from './pages/Tensions'
 import './index.css'
 
 createRoot(document.getElementById('root')).render(
@@ -11,6 +12,7 @@ createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/history" element={<History />} />
+        <Route path="/tensions" element={<Tensions />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>
