@@ -23,8 +23,8 @@ async function authenticateUser(dbCred, usuario, password) {
     return null;
   }
   try {
-    console.log('authenticateUser: looking up usuario:', usuario);
-    const [rows] = await dbCred.query('SELECT * FROM users WHERE usuario = ?', [usuario]);
+    console.log('authenticateUser: looking up user by nombre:', usuario);
+    const [rows] = await dbCred.query('SELECT * FROM users WHERE nombre = ?', [usuario]);
     const row = rows && rows[0];
     if (!row) {
       console.log('authenticateUser: user not found');

@@ -138,8 +138,8 @@ export default function Line({ idx, info = { running: false }, onStart, onStop, 
     setAuthError('');
     
     try {
-      // Use the usuario field and nombre from authLookedUp
-      const usuario = authLookedUp?.usuario;
+      // Use nombre as both usuario and nombre (usuario field not always populated)
+      const usuario = authLookedUp?.nombre;
       const nombre = authLookedUp?.nombre;
       
       if (pendingAction === 'start') {
